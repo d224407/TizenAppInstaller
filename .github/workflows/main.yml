@@ -3,6 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [ master ]
+  pull_request:
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -25,53 +27,28 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    - name: Clean
-      run: ./gradlew clean
-
-    - name: Build APK with FULL logs
+    - name: Build APK
       id: build
       continue-on-error: true
       run: |
-        # Ghi log vào file và console
-        ./gradlew assembleDebug --stacktrace --info --full-stacktrace 2>&1 | tee build-full.log
-        
-        # Lưu exit code
-        echo "GRADLE_EXIT=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
 
-    - name: ALWAYS upload logs (even on failure)
-      if: always()
+    - name: Upload error logs if build failed
+      if: steps.build.outcome == 'failure'
       uses: actions/upload-artifact@v4
       with:
-        name: build-logs
+        name: build-error-logs
         path: |
-          build-full.log
+          build.log
           **/build/reports/
           **/build/outputs/logs/
-          **/build/test-results/
-          **/.gradle/
-          **/*.log
-          app/build.gradle
-          build.gradle
-          settings.gradle
-          gradle/wrapper/gradle-wrapper.properties
 
-    - name: Upload APK if exists
-      if: always()
+    - name: Upload APK if build succeeded
+      if: steps.build.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
-        name: apk-files
-        path: |
-          **/build/outputs/apk/**/*.apk
-          **/*.apk
-
-    - name: Show build result
-      run: |
-        echo "Gradle exit code: ${{ steps.build.outputs.GRADLE_EXIT }}"
-        echo "Build outcome: ${{ steps.build.outcome }}"
-        
-        # Hiện 50 dòng cuối của log
-        echo "=== Last 50 lines of log ==="
-        tail -50 build-full.log || echo "Không có log"
+        name: app-debug
+        path: app/build/outputs/apk/debug/*.apk
 
     - name: Fail workflow if build failed
       if: steps.build.outcome == 'failure'
