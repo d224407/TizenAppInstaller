@@ -27,32 +27,41 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    - name: Build APK
-      id: build
-      continue-on-error: true    # <<< Cho phép tiếp tục dù build lỗi
-      run: ./gradlew assembleDebug --stacktrace
+    - name: Clean build
+      run: ./gradlew clean
 
-    - name: Upload error logs if build failed
-      if: steps.build.outcome == 'failure'    # <<< Chỉ chạy khi build thất bại
+    - name: Build APK with full logs
+      id: build
+      continue-on-error: true
+      run: |
+        ./gradlew assembleDebug --stacktrace --info --full-stacktrace 2>&1 | tee build-full.log
+
+    - name: Upload ALL logs on failure
+      if: failure() || steps.build.outcome == 'failure'
       uses: actions/upload-artifact@v4
       with:
-        name: build-error-logs
+        name: complete-build-logs
         path: |
+          build-full.log
           **/build/reports/
           **/build/outputs/logs/
           **/build/test-results/
+          **/.gradle/
           **/*.log
-          **/build.gradle
-          **/settings.gradle
+          app/build/outputs/apk/
           gradle/wrapper/gradle-wrapper.properties
+          app/build.gradle
+          build.gradle
+          settings.gradle
+          local.properties
 
-    - name: Upload APK if build succeeded
+    - name: Upload APK on success
       if: steps.build.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
 
-    - name: Fail the workflow if build failed
+    - name: Fail workflow if build failed
       if: steps.build.outcome == 'failure'
       run: exit 1
