@@ -1,10 +1,10 @@
-name: Build
+name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ]    # <<< Thêm master
+    branches: [ master ]
   pull_request:
-    branches: [ main ]             # Giữ nguyên hoặc thêm master nếu cần
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -28,10 +28,31 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build APK
-      run: ./gradlew assembleDebug
+      id: build
+      continue-on-error: true    # <<< Cho phép tiếp tục dù build lỗi
+      run: ./gradlew assembleDebug --stacktrace
 
-    - name: Upload APK
+    - name: Upload error logs if build failed
+      if: steps.build.outcome == 'failure'    # <<< Chỉ chạy khi build thất bại
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-error-logs
+        path: |
+          **/build/reports/
+          **/build/outputs/logs/
+          **/build/test-results/
+          **/*.log
+          **/build.gradle
+          **/settings.gradle
+          gradle/wrapper/gradle-wrapper.properties
+
+    - name: Upload APK if build succeeded
+      if: steps.build.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
+
+    - name: Fail the workflow if build failed
+      if: steps.build.outcome == 'failure'
+      run: exit 1
