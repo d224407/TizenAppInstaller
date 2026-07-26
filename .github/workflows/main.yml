@@ -1,4 +1,4 @@
-name: Build
+name: Build Android APK
 
 on:
   push:
@@ -28,23 +28,51 @@ jobs:
     - name: Clean
       run: ./gradlew clean
 
-    - name: Build APK
+    - name: Build APK with FULL logs
+      id: build
+      continue-on-error: true
       run: |
-        ./gradlew assembleDebug --stacktrace
+        # Ghi log vào file và console
+        ./gradlew assembleDebug --stacktrace --info --full-stacktrace 2>&1 | tee build-full.log
         
-    - name: List all APK files
-      run: |
-        echo "=== Tìm tất cả APK ==="
-        find . -name "*.apk" -type f
-        echo "=== Kiểm tra thư mục outputs ==="
-        ls -la app/build/outputs/ || echo "Không có outputs"
-        echo "=== Kiểm tra thư mục apk ==="
-        ls -la app/build/outputs/apk/ || echo "Không có apk"
+        # Lưu exit code
+        echo "GRADLE_EXIT=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
 
-    - name: Upload APK
+    - name: ALWAYS upload logs (even on failure)
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: android-apk
+        name: build-logs
+        path: |
+          build-full.log
+          **/build/reports/
+          **/build/outputs/logs/
+          **/build/test-results/
+          **/.gradle/
+          **/*.log
+          app/build.gradle
+          build.gradle
+          settings.gradle
+          gradle/wrapper/gradle-wrapper.properties
+
+    - name: Upload APK if exists
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-files
         path: |
           **/build/outputs/apk/**/*.apk
           **/*.apk
+
+    - name: Show build result
+      run: |
+        echo "Gradle exit code: ${{ steps.build.outputs.GRADLE_EXIT }}"
+        echo "Build outcome: ${{ steps.build.outcome }}"
+        
+        # Hiện 50 dòng cuối của log
+        echo "=== Last 50 lines of log ==="
+        tail -50 build-full.log || echo "Không có log"
+
+    - name: Fail workflow if build failed
+      if: steps.build.outcome == 'failure'
+      run: exit 1
