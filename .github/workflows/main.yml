@@ -1,9 +1,7 @@
-name: Build Android APK
+name: Build
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
     branches: [ master ]
   workflow_dispatch:
 
@@ -27,41 +25,26 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    - name: Clean build
+    - name: Clean
       run: ./gradlew clean
 
-    - name: Build APK with full logs
-      id: build
-      continue-on-error: true
+    - name: Build APK
       run: |
-        ./gradlew assembleDebug --stacktrace --info --full-stacktrace 2>&1 | tee build-full.log
+        ./gradlew assembleDebug --stacktrace
+        
+    - name: List all APK files
+      run: |
+        echo "=== Tìm tất cả APK ==="
+        find . -name "*.apk" -type f
+        echo "=== Kiểm tra thư mục outputs ==="
+        ls -la app/build/outputs/ || echo "Không có outputs"
+        echo "=== Kiểm tra thư mục apk ==="
+        ls -la app/build/outputs/apk/ || echo "Không có apk"
 
-    - name: Upload ALL logs on failure
-      if: failure() || steps.build.outcome == 'failure'
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: complete-build-logs
+        name: android-apk
         path: |
-          build-full.log
-          **/build/reports/
-          **/build/outputs/logs/
-          **/build/test-results/
-          **/.gradle/
-          **/*.log
-          app/build/outputs/apk/
-          gradle/wrapper/gradle-wrapper.properties
-          app/build.gradle
-          build.gradle
-          settings.gradle
-          local.properties
-
-    - name: Upload APK on success
-      if: steps.build.outcome == 'success'
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/*.apk
-
-    - name: Fail workflow if build failed
-      if: steps.build.outcome == 'failure'
-      run: exit 1
+          **/build/outputs/apk/**/*.apk
+          **/*.apk
